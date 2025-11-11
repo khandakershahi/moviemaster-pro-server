@@ -47,12 +47,24 @@ async function run() {
             res.send(result);
         })
 
+        // movie slider api
         app.get('/movie-slider', async (req, res) => {
             const movieSlider = moviesCollectino
                 .find()
-                .sort({ movieId: -1, })
+                .sort({ movieId: 1, })
                 .limit(6);
             const result = await movieSlider.toArray();
+            res.send(result);
+
+        })
+
+        // top rated movie api
+        app.get('/movie-toprated', async (req, res) => {
+            const movieTopRated = moviesCollectino
+                .find()
+                .sort({ rating: -1, })
+                .limit(5);
+            const result = await movieTopRated.toArray();
             res.send(result);
 
         })
