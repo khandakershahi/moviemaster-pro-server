@@ -69,6 +69,16 @@ async function run() {
 
         })
 
+        // recent movies api
+        app.get('/movie-recent', async (req, res) => {
+            const movieRecent = moviesCollectino
+                .find()
+                .sort({ movieId: -1, })
+                .limit(5);
+            const result = await movieRecent.toArray();
+            res.send(result);
+
+        })
 
 
 
