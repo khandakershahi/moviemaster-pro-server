@@ -35,6 +35,27 @@ async function run() {
         await client.connect();
 
         const db = client.db('movie_db');
+        const moviesCollectino = db.collection('movies');
+
+
+
+        //movie all api
+        app.get('/movies', async (req, res) => {
+            const cursor = moviesCollectino
+            const result = await cursor.find().toArray();
+            console.log(result);
+            res.send(result);
+        })
+
+        app.get('/movie-slider', async (req, res) => {
+            const movieSlider = moviesCollectino
+                .find()
+                .sort({ movieId: -1, })
+                .limit(6);
+            const result = await movieSlider.toArray();
+            res.send(result);
+
+        })
 
 
 
@@ -46,7 +67,7 @@ async function run() {
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
         // Ensures that the client will close when you finish/error
-        await client.close();
+        // await client.close();
     }
 }
 run().catch(console.dir);
