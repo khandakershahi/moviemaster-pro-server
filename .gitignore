@@ -1,3 +1,4 @@
 node_modules
 .env.local
 .env
+movie-master-pro-ks-firebase-adminsdk-key.json

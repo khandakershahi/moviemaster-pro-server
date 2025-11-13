@@ -4,7 +4,19 @@ require('dotenv').config();
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
-const admin = require('firebase-admin');
+
+
+
+
+
+const admin = require("firebase-admin");
+
+const serviceAccount = require("./movie-master-pro-ks-firebase-adminsdk-key.json");
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
 
 // Firebase initialization (unchanged, commented out as in original)
 // const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, 'base64').toString('utf8');
@@ -12,6 +24,8 @@ const admin = require('firebase-admin');
 // admin.initializeApp({
 //   credential: admin.credential.cert(serviceAccount),
 // });
+
+
 
 // Middleware
 app.use(cors());
@@ -26,6 +40,26 @@ const client = new MongoClient(uri, {
         deprecationErrors: true,
     },
 });
+
+
+// Firebase token verification middleware
+const verifyFireBaseToken = async (req, res, next) => {
+    const authorization = req.headers.authorization;
+    if (!authorization) {
+        return res.status(401).send({ message: 'unauthorized access' });
+    }
+    const token = authorization.split(' ')[1];
+    try {
+        const decoded = await admin.auth().verifyIdToken(token);
+        req.token_email = decoded.email;
+        next();
+    } catch (error) {
+        console.error('Token verification error:', error.message);
+        return res.status(401).send({ message: 'unauthorized access' });
+    }
+};
+
+
 
 async function connectToMongo() {
     try {
@@ -58,12 +92,37 @@ app.post('/users', async (req, res) => {
         const query = { email };
         const existingUser = await usersCollection.findOne(query);
         if (existingUser) {
-            return res.send({ message: 'User already exists. Do not need to insert again' });
+            return res.send({ message: 'user already exists. do not need to insert again' });
         }
         const result = await usersCollection.insertOne(newUser);
         res.send(result);
     } catch (error) {
         console.error('Error in /users:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
+// Get user by email
+app.get('/users/:email', verifyFireBaseToken, async (req, res) => {
+    try {
+        const db = await connectToMongo();
+        const usersCollection = db.collection('users');
+        const { email } = req.params;
+
+        // Ensure the requesting user can only fetch their own data
+        if (email !== req.token_email) {
+            return res.status(403).send({ message: 'Unauthorized access' });
+        }
+
+        const user = await usersCollection.findOne({ email });
+        if (!user) {
+            return res.status(404).send({ message: 'User not found' });
+        }
+
+        // Return only necessary fields
+        res.send({ image: user.image, name: user.name });
+    } catch (error) {
+        console.error('Error in GET /users/:email:', error.message);
         res.status(500).send({ message: 'Internal server error' });
     }
 });
