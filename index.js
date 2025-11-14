@@ -5,12 +5,12 @@ const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
 const admin = require('firebase-admin');
-const serviceAccount = require('./movie-master-pro-ks-firebase-adminsdk-key.json');
+// const serviceAccount = require('./movie-master-pro-ks-firebase-adminsdk-key.json');
 
 
 // Firebase initialization
-// const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, 'base64').toString('utf8');
-// const serviceAccount = JSON.parse(decoded);
+const decoded = Buffer.from(process.env.FIREBASE_SERVICE_KEY, 'base64').toString('utf8');
+const serviceAccount = JSON.parse(decoded);
 
 admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
@@ -32,7 +32,7 @@ const client = new MongoClient(uri, {
 // Firebase token verification middleware
 const verifyFireBaseToken = async (req, res, next) => {
     const authorization = req.headers.authorization;    // console.log(req.headers);
-    console.log(authorization);
+    // console.log(authorization);
     if (!authorization) {
         return res.status(401).send({ message: 'unauthorized access' });
     }
@@ -47,6 +47,8 @@ const verifyFireBaseToken = async (req, res, next) => {
         return res.status(401).send({ message: 'unauthorized access' });
     }
 };
+
+// MongoDB connection helper
 
 async function connectToMongo() {
     try {
@@ -540,7 +542,11 @@ app.get('/movie-recent', async (req, res) => {
 
 
 
-connectToMongo().catch(console.dir);
-app.listen(port, () => {
-    console.log(`Movie Master Pro app listening on port ${port}`);
-});
+// connectToMongo().catch(console.dir);
+// app.listen(port, () => {
+//     console.log(`Movie Master Pro app listening on port ${port}`);
+// });
+
+
+// Export for Vercel
+module.exports = app;
