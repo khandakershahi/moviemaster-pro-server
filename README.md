@@ -42,7 +42,7 @@ https://github.com/khandakershahi/moviemaster-pro-server
 
 ## Live Link
 
-(Not deployed; runs locally)
+(https://moviemaster-pro-server-gamma.vercel.app)
 
 ## License
 
