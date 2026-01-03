@@ -375,6 +375,50 @@ app.post('/reviews', verifyFireBaseToken, async (req, res) => {
     }
 });
 
+
+// Reviews: Get latest reviews for Home page (public)
+app.get('/reviews-home', async (req, res) => {
+    try {
+        const db = await connectToMongo();
+        const reviewsCollection = db.collection('reviews');
+
+        // Fetch latest 6 reviews with movie info
+        const reviews = await reviewsCollection
+            .aggregate([
+                {
+                    $lookup: {
+                        from: 'movies',            // Join with movies collection
+                        localField: 'movieId',
+                        foreignField: '_id',
+                        as: 'movie',
+                    },
+                },
+                { $unwind: '$movie' },          // Flatten the movie array
+                { $sort: { createdAt: -1 } },  // Latest reviews first
+                { $limit: 6 },                  // Limit to 6 reviews
+                {
+                    $project: {                // Only include needed fields
+                        _id: 1,
+                        movieId: 1,
+                        userEmail: 1,
+                        comment: 1,
+                        rating: 1,
+                        createdAt: 1,
+                        'movie.title': 1,
+                        'movie.posterUrl': 1,
+                    },
+                },
+            ])
+            .toArray();
+
+        res.send(reviews);
+    } catch (error) {
+        console.error('Error in GET /reviews-home:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
+
 // Watchlist: Check if movie is in user's watchlist (protected)
 app.get('/watchlist/check/:movieId', verifyFireBaseToken, async (req, res) => {
     try {
