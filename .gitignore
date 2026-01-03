@@ -1,5 +1,7 @@
 node_modules
-.env.local
+# env files
 .env
+.env.*
+!.env.example
 movie-master-pro-ks-firebase-adminsdk-key.json
 .vercel

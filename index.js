@@ -1,6 +1,13 @@
 const express = require('express');
 const cors = require('cors');
-require('dotenv').config();
+
+require('dotenv').config({
+    path:
+        process.env.NODE_ENV === 'production'
+            ? '.env.production'
+            : '.env.local',
+});
+
 const app = express();
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const port = process.env.PORT || 3000;
@@ -402,8 +409,8 @@ app.post('/watchlist', verifyFireBaseToken, async (req, res) => {
             return res.status(400).send({ message: 'Movie ID and user email are required' });
         }
         if (!ObjectId.isValid(movieId)) {
-           return res.status(400).send({ message: 'Invalid movie ID format' });
-        } 
+            return res.status(400).send({ message: 'Invalid movie ID format' });
+        }
         console.log(userEmail, req.token_email);
         if (userEmail !== req.token_email) {
             return res.status(403).send({ message: 'Unauthorized: Email mismatch' });
@@ -439,7 +446,7 @@ app.get('/watchlist/my', verifyFireBaseToken, async (req, res) => {
         const db = await connectToMongo();
         const watchlistCollection = db.collection('watchlists');
         const moviesCollection = db.collection('movies');
-       
+
         // Find all watchlist entries for user
         const watchlistEntries = await watchlistCollection
             .find({ userEmail: req.token_email })
