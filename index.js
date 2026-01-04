@@ -117,6 +117,60 @@ app.get('/users/:email', verifyFireBaseToken, async (req, res) => {
     }
 });
 
+// Update profile (protected)
+app.patch('/users/:email', verifyFireBaseToken, async (req, res) => {
+    try {
+        const { email } = req.params;
+        if (email !== req.token_email) {
+            return res.status(403).send({ message: 'Unauthorized access' });
+        }
+
+        const { name, image } = req.body || {};
+        if (!name && !image) {
+            return res.status(400).send({ message: 'Nothing to update' });
+        }
+
+        const updateDoc = { updatedAt: new Date() };
+        if (typeof name === 'string') updateDoc.name = name.trim();
+        if (typeof image === 'string') updateDoc.image = image.trim();
+
+        const db = await connectToMongo();
+        const usersCollection = db.collection('users');
+        const result = await usersCollection.updateOne(
+            { email },
+            { $set: updateDoc },
+            { upsert: true }
+        );
+
+        const wasCreated = !!result.upsertedCount;
+        res.send({ message: wasCreated ? 'Profile created' : 'Profile updated' });
+    } catch (error) {
+        console.error('Error in PATCH /users/:email:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
+// Dashboard summary stats (protected)
+app.get('/stats/summary', verifyFireBaseToken, async (req, res) => {
+    try {
+        const db = await connectToMongo();
+        const moviesCollection = db.collection('movies');
+        const usersCollection = db.collection('users');
+        const reviewsCollection = db.collection('reviews');
+
+        const [movies, users, reviews] = await Promise.all([
+            moviesCollection.countDocuments(),
+            usersCollection.countDocuments(),
+            reviewsCollection.countDocuments(),
+        ]);
+
+        res.send({ movies, users, reviews });
+    } catch (error) {
+        console.error('Error in GET /stats/summary:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
 // Get all users (protected)
 app.get('/users', async (req, res) => {
     try {
@@ -160,6 +214,68 @@ app.get('/movies', async (req, res) => {
         res.send(result);
     } catch (error) {
         console.error('Error in GET /movies:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
+// Filtered & paginated movies (public)
+app.get('/movies/query', async (req, res) => {
+    try {
+        const db = await connectToMongo();
+        const moviesCollection = db.collection('movies');
+
+        const {
+            q = '',
+            genre = '',
+            year = '',
+            page = 1,
+            limit = 12,
+            sortBy = 'createdAt',
+            sortOrder = 'desc',
+        } = req.query;
+
+        const numericPage = Math.max(parseInt(page, 10) || 1, 1);
+        const numericLimit = Math.min(Math.max(parseInt(limit, 10) || 12, 1), 50);
+        const filter = {};
+
+        if (q) {
+            filter.title = { $regex: q, $options: 'i' };
+        }
+
+        if (genre) {
+            filter.genre = { $regex: `^${genre}$`, $options: 'i' };
+        }
+
+        if (year) {
+            const parsedYear = parseInt(year, 10);
+            if (Number.isNaN(parsedYear)) {
+                return res.status(400).send({ message: 'Invalid year parameter' });
+            }
+            filter.releaseYear = parsedYear;
+        }
+
+        const sortField = ['rating', 'releaseYear', 'title', 'createdAt'].includes(sortBy)
+            ? sortBy
+            : 'createdAt';
+        const sortDirection = sortOrder === 'asc' ? 1 : -1;
+
+        const skip = (numericPage - 1) * numericLimit;
+
+        const [data, total] = await Promise.all([
+            moviesCollection
+                .find(filter)
+                .sort({ [sortField]: sortDirection })
+                .skip(skip)
+                .limit(numericLimit)
+                .toArray(),
+            moviesCollection.countDocuments(filter),
+        ]);
+
+        const totalPages = Math.max(Math.ceil(total / numericLimit), 1);
+
+        res.send({ data, total, page: numericPage, totalPages, limit: numericLimit });
+    } catch (error) {
+        console.error('Error in GET /movies/query:', error.message);
         res.status(500).send({ message: 'Internal server error' });
     }
 });
@@ -319,6 +435,48 @@ app.delete('/movies/:id', verifyFireBaseToken, async (req, res) => {
 });
 
 
+// Reviews: Get current user's reviews (protected) - define before /reviews/:movieId to avoid route collision
+app.get('/reviews/my', verifyFireBaseToken, async (req, res) => {
+    try {
+        const db = await connectToMongo();
+        const reviewsCollection = db.collection('reviews');
+
+        const reviews = await reviewsCollection
+            .aggregate([
+                { $match: { userEmail: req.token_email } },
+                {
+                    $lookup: {
+                        from: 'movies',
+                        localField: 'movieId',
+                        foreignField: '_id',
+                        as: 'movie',
+                    },
+                },
+                { $unwind: { path: '$movie', preserveNullAndEmptyArrays: true } },
+                { $sort: { createdAt: -1 } },
+                {
+                    $project: {
+                        userEmail: 1,
+                        comment: 1,
+                        rating: 1,
+                        createdAt: 1,
+                        movie: {
+                            title: '$movie.title',
+                            posterUrl: '$movie.posterUrl',
+                            _id: '$movie._id',
+                        },
+                    },
+                },
+            ])
+            .toArray();
+
+        res.send(reviews);
+    } catch (error) {
+        console.error('Error in GET /reviews/my:', error.message);
+        res.status(500).send({ message: 'Internal server error' });
+    }
+});
+
 // Reviews: Get reviews for a movie (public)
 app.get('/reviews/:movieId', async (req, res) => {
     try {
@@ -417,6 +575,7 @@ app.get('/reviews-home', async (req, res) => {
         res.status(500).send({ message: 'Internal server error' });
     }
 });
+
 
 
 // Watchlist: Check if movie is in user's watchlist (protected)
